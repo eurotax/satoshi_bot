@@ -1,5 +1,5 @@
-import logging
 import os
+import logging
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
@@ -8,42 +8,36 @@ from telegram.ext import (
     ContextTypes
 )
 
-# Wczytaj zmienne środowiskowe
+# Wczytaj token z pliku .env lub zmiennej środowiskowej
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
-# Konfiguracja logów
-logging.basicConfig(level=logging.INFO)
+# Konfiguracja logowania
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
 
 # Komenda /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 Welcome to Satoshi Signal Bot!\n\nUse /help to view available commands."
-    )
+    await update.message.reply_text("👋 Witamy w Satoshi Signal Bot!")
 
 # Komenda /help
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "/start - Welcome message\n"
-        "/help - This help message\n"
-        "/vip - Info about VIP access"
-    )
+    await update.message.reply_text("Dostępne komendy:\n/start\n/help\n/vip")
 
 # Komenda /vip
 async def vip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🚀 *Satoshi Signal Lab VIP Access*\n\n"
-        "✅ Full access to all trading signals\n"
-        "✅ Real-time alerts on DEXScanner / Binance / KuCoin\n"
-        "✅ Early info about new tokens & sniper activity\n\n"
-        "💎 Join VIP now: [Access VIP Channel](https://t.me/YOUR_VIP_CHANNEL_LINK)\n"
-        "_Or complete your subscription to unlock VIP access._",
+        "✅ Pełen dostęp do sygnałów\n"
+        "✅ Alerty DEX/Binance/KuCoin\n\n"
+        "💎 Dołącz do VIP: [Kliknij tutaj](https://t.me/TWOJ_KANAL_VIP)",
         parse_mode='Markdown',
         disable_web_page_preview=True
     )
 
 # Uruchomienie aplikacji
-if __name__ == '__main__':
+if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
