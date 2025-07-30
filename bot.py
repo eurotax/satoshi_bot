@@ -8,35 +8,35 @@ from telegram.ext import (
     ContextTypes
 )
 
-# Wczytaj token z pliku .env lub zmiennej środowiskowej
+# Load environment variables
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
-# Konfiguracja logowania
+# Logging configuration
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 
-# Komenda /start
+# /start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Witamy w Satoshi Signal Bot!")
+    await update.message.reply_text("👋 Welcome to Satoshi Signal Bot!")
 
-# Komenda /help
+# /help command
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Dostępne komendy:\n/start\n/help\n/vip")
+    await update.message.reply_text("Available commands:\n/start\n/help\n/vip")
 
-# Komenda /vip
+# /vip command
 async def vip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🚀 *Satoshi Signal Lab VIP Access*\n\n"
-        "✅ Pełen dostęp do sygnałów\n"
-        "✅ Alerty DEX/Binance/KuCoin\n\n"
-        "💎 Dołącz do VIP: [Kliknij tutaj](https://t.me/TWOJ_KANAL_VIP)",
+        "✅ Full access to all signals\n"
+        "✅ DEX / Binance / KuCoin alerts\n\n"
+        "💎 Join VIP now: [Click here](https://t.me/YOUR_VIP_CHANNEL)",
         parse_mode='Markdown',
         disable_web_page_preview=True
     )
 
-# Uruchomienie aplikacji
+# Start the bot
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
 
