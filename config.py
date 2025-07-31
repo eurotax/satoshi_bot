@@ -1,14 +1,10 @@
 # === config.py ===
 
-# Minimum required 24h trading volume in USD
-MIN_VOLUME = 10000
+# Minimalne wymagania do filtrowania sygnałów
+MIN_VOLUME = 10000          # Min. wolumen obrotu 24h w USD
+MIN_LIQUIDITY = 5000        # Min. płynność w USD
+MIN_PRICE_CHANGE = 10       # Min. zmiana ceny w % w ciągu 1h
 
-# Minimum required liquidity in USD
-MIN_LIQUIDITY = 5000
-
-# Minimum absolute price change in % over the last 1 hour
-MIN_PRICE_CHANGE = 10
-
-# Telegram channel IDs (update with real values)
-VIP_CHANNEL_ID = "-1002726810570"
+# Telegram channel IDs (upewnij się, że są prawidłowe)
+VIP_CHANNEL_ID = "-1002726810570"       # Jeśli masz inny, zaktualizuj
 PUBLIC_CHANNEL_ID = "@SatoshiSignalLab"
