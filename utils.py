@@ -24,7 +24,6 @@ async def fetch_dex_data():
 def is_legit_token(pair):
     """Simulate anti-scam heuristics (can be enhanced with on-chain data)"""
     try:
-        base = pair.get("baseToken", {})
         tax = pair.get("txns", {}).get("h1", {}).get("buys", 0) + pair.get("txns", {}).get("h1", {}).get("sells", 0)
         renounced = pair.get("pairCreatedAt", 0) > 0  # Placeholder for renounce check
         locked = pair.get("liquidity", {}).get("locked", False)  # Placeholder
