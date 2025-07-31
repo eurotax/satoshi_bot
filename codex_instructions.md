@@ -68,3 +68,18 @@ Codex, you are expected to act as an advanced engineering agent and complete the
 ## 🧾 Final Goal
 
 A professional-grade, production-ready crypto signal bot for Telegram, operating reliably 24/7 on Render.com with modular, testable, and maintainable code.
+
+### [!] Important Runtime Notes
+
+- Only one instance of the bot may use polling (`getUpdates`) at a time.
+- On Render, always prefer Webhook-based setup to avoid 409 Conflict errors.
+- For DEXScreener, avoid using `/dex/pairs/{blockchain}` endpoints directly. Use:
+  - `/latest/dex/search?q={token_name}`
+  - or `/latest/dex/pairs/{DEX_name}`
+
+### API Tokens
+
+Store your secrets in `.env` file:
+```env
+TELEGRAM_TOKEN=your_bot_token
+DEXSCREENER_API_KEY=not_required_for_public_endpoints
