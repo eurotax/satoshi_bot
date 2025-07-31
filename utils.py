@@ -82,3 +82,33 @@ def format_signals(pairs, vip: bool = False):
         else "💎 Want more? [Join VIP](https://t.me/+sR2qa2jnr6o5MDk0) for exclusive updates!"
     )
     return header + body + footer
+
+
+async def fetch_pairs():
+    """Alias for fetch_dex_data for backward compatibility."""
+    return await fetch_dex_data()
+
+
+def filter_pairs(pairs):
+    """Alias for filter_signals for backward compatibility."""
+    return filter_signals(pairs)
+
+
+def format_pair_message(pair, include_meta=False):
+    """Format single pair information."""
+    name = f"{pair.get('baseToken', {}).get('symbol','?')}/{pair.get('quoteToken', {}).get('symbol','?')}"
+    price = float(pair.get('priceUsd', 0))
+    change = float(pair.get('priceChange', {}).get('h1', 0))
+    volume = float(pair.get('volume', {}).get('h24', 0))
+    liquidity = float(pair.get('liquidity', {}).get('usd', 0))
+    url = pair.get('url', '')
+    emoji = "\U0001F4C8" if change > 0 else "\U0001F4C9"
+    message = f"{emoji} [{name}]({url})"
+    if include_meta:
+        message += (
+            f"\n\U0001F4B0 Price: `{price:.6f}`"
+            f"\n\U0001F4C9 1h Change: `{change:.2f}%`"
+            f"\n\U0001F4CA Volume 24h: `{volume:,.0f}`"
+            f"\n\U0001F510 Liquidity: `{liquidity:,.0f}`"
+        )
+    return message
