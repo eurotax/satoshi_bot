@@ -3,9 +3,14 @@
 import logging
 from telegram.ext import Application
 from telegram.ext import CommandHandler
-from handlers.commands import start, help_command, vip, status, signals
+from handlers.commands import (
+    start_command,
+    help_command,
+    vip_command,
+    status_command,
+)
+from handlers.alerts import signals_command
 from jobs.scheduler import schedule_jobs
-from config import VIP_CHANNEL_ID, PUBLIC_CHANNEL_ID
 from dotenv import load_dotenv
 import os
 
@@ -33,11 +38,11 @@ def main():
     application = Application.builder().token(TOKEN).build()
 
     # Rejestracja komend
-    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("vip", vip))
-    application.add_handler(CommandHandler("status", status))
-    application.add_handler(CommandHandler("signals", signals))
+    application.add_handler(CommandHandler("vip", vip_command))
+    application.add_handler(CommandHandler("status", status_command))
+    application.add_handler(CommandHandler("signals", signals_command))
 
     # Harmonogram publikacji
     schedule_jobs(application.job_queue)
