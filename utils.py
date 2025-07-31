@@ -9,22 +9,27 @@ logger = logging.getLogger(__name__)
 
 async def fetch_dex_data():
     """Fetch top Solana pairs from DEXScreener with basic retries."""
-    url = "https://api.dexscreener.com/latest/dex/pairs/solana"
+    urls = [
+        "https://api.dexscreener.com/latest/dex/pairs/solana",
+        "https://api.dexscreener.io/latest/dex/pairs/solana",
+    ]
     for attempt in range(3):
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                response = await client.get(url)
-                if response.is_error:
-                    logger.warning(
-                        "DEXScreener returned %s on attempt %s",
-                        response.status_code,
-                        attempt + 1,
-                    )
-                    response.raise_for_status()
-                data = response.json()
-                return data.get("pairs", [])
-        except Exception as e:
-            logger.error("Error fetching DEX data: %s", e)
+        for url in urls:
+            try:
+                async with httpx.AsyncClient(timeout=10) as client:
+                    response = await client.get(url)
+                    if response.is_error:
+                        logger.warning(
+                            "DEXScreener returned %s for %s on attempt %s",
+                            response.status_code,
+                            url,
+                            attempt + 1,
+                        )
+                        continue
+                    data = response.json()
+                    return data.get("pairs", [])
+            except Exception as e:
+                logger.error("Error fetching DEX data from %s: %s", url, e)
     return []
 
 
