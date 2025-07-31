@@ -16,7 +16,7 @@ import os
 
 # Wczytaj zmienne środowiskowe
 load_dotenv()
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN")
 
 # Konfiguracja logowania
 logging.basicConfig(

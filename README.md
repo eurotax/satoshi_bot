@@ -19,7 +19,7 @@ Signals are filtered using basic heuristics (volume, liquidity, price change and
 pip install -r requirements.txt
 ```
 
-2. Create a `.env` file with `BOT_TOKEN` and any other credentials.
+2. Create a `.env` file with `BOT_TOKEN` (or `TELEGRAM_TOKEN`) and any other credentials.
 3. Run the bot
 
 ```bash

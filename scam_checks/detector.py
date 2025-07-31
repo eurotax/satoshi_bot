@@ -1,6 +1,5 @@
 # === scam_checks/detector.py ===
 
-import httpx
 
 async def is_renounced(pair):
     # TODO: Replace with actual logic based on token contract audit or blockchain call

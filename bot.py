@@ -15,7 +15,7 @@ from config import VIP_CHANNEL_ID, PUBLIC_CHANNEL_ID
 
 # Load environment variables
 load_dotenv()
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN")
 
 # Configure logging
 logging.basicConfig(
