@@ -1,7 +1,7 @@
 # === jobs/scheduler.py ===
 
 import logging
-from telegram.ext import ContextTypes
+from telegram.ext import ContextTypes, JobQueue
 from dex.screener import get_filtered_signals, format_signals_message
 from config import VIP_CHANNEL_ID, PUBLIC_CHANNEL_ID
 
@@ -31,3 +31,24 @@ async def publish_signals_job(context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"Błąd podczas publikacji sygnałów: {e}")
+
+
+def schedule_jobs(job_queue: JobQueue) -> None:
+    """Register periodic signal publishing jobs."""
+    # VIP channel updates every 15 minutes
+    job_queue.run_repeating(
+        publish_signals_job,
+        interval=900,
+        first=60,
+        data=VIP_CHANNEL_ID,
+        name="vip_signals",
+    )
+
+    # Public channel updates every 8 hours
+    job_queue.run_repeating(
+        publish_signals_job,
+        interval=28800,
+        first=300,
+        data=PUBLIC_CHANNEL_ID,
+        name="public_signals",
+    )
