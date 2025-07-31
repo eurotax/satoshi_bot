@@ -3,7 +3,7 @@
 import httpx
 import logging
 from config import MIN_VOLUME, MIN_LIQUIDITY, MIN_PRICE_CHANGE
-from utils import format_pair_message, format_signals
+from utils import format_pair_message, format_signals, is_legit_token
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,12 @@ def filter_signals(pairs: list) -> list:
             liquidity = float(pair.get("liquidity", {}).get("usd", 0))
             price_change = float(pair.get("priceChange", {}).get("h1", 0))
 
-            if volume >= MIN_VOLUME and liquidity >= MIN_LIQUIDITY and abs(price_change) >= MIN_PRICE_CHANGE:
+            if (
+                volume >= MIN_VOLUME
+                and liquidity >= MIN_LIQUIDITY
+                and abs(price_change) >= MIN_PRICE_CHANGE
+                and is_legit_token(pair)
+            ):
                 filtered.append(pair)
         except Exception as e:
             logger.warning(f"[dex/screener] Skipping malformed pair: {e}")
