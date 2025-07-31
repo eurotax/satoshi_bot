@@ -31,3 +31,21 @@ async def publish_signals_job(context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"Błąd podczas publikacji sygnałów: {e}")
+
+
+def schedule_jobs(job_queue):
+    """Register periodic publishing jobs on the provided ``job_queue``."""
+    job_queue.run_repeating(
+        publish_signals_job,
+        interval=900,  # 15 minutes
+        first=60,
+        data=VIP_CHANNEL_ID,
+        name="vip_signals",
+    )
+    job_queue.run_repeating(
+        publish_signals_job,
+        interval=28800,  # 8 hours
+        first=300,
+        data=PUBLIC_CHANNEL_ID,
+        name="public_signals",
+    )
