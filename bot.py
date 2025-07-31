@@ -57,7 +57,21 @@ def main():
     )
 
     logger.info("Bot started. Use Ctrl+C to stop.")
-    application.run_polling(allowed_updates=None)
+
+    webhook_url = os.getenv("WEBHOOK_URL")
+    if webhook_url:
+        path = f"/{BOT_TOKEN}"
+        listen_port = int(os.getenv("PORT", 8443))
+        logger.info("Starting webhook at %s", webhook_url)
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=listen_port,
+            url_path=path,
+            webhook_url=f"{webhook_url}{path}",
+            allowed_updates=None,
+        )
+    else:
+        application.run_polling(allowed_updates=None)
 
 
 if __name__ == "__main__":
