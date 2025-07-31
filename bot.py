@@ -1,1 +1,60 @@
+# === bot.py ===
+
+import logging
+import os
+from dotenv import load_dotenv
+from telegram.ext import Application, CommandHandler
+from handlers.commands import start_cmd, help_cmd, vip_cmd, status_cmd
+from handlers.alerts import signals_command, vip_signals_push, public_signals_push
+from config import VIP_CHANNEL_ID, PUBLIC_CHANNEL_ID
+
+# Load environment variables
+load_dotenv()
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+# Configure logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+
+def main():
+    if not BOT_TOKEN:
+        logger.error("BOT_TOKEN is not set in .env file")
+        return
+
+    application = Application.builder().token(BOT_TOKEN).build()
+
+    # Command handlers
+    application.add_handler(CommandHandler("start", start_cmd))
+    application.add_handler(CommandHandler("help", help_cmd))
+    application.add_handler(CommandHandler("vip", vip_cmd))
+    application.add_handler(CommandHandler("status", status_cmd))
+    application.add_handler(CommandHandler("signals", signals_command))
+
+    # Schedule automatic signal publishing
+    application.job_queue.run_repeating(
+        vip_signals_push,
+        interval=900,  # 15 minutes
+        first=60,
+        data=VIP_CHANNEL_ID,
+        name="vip_signals"
+    )
+
+    application.job_queue.run_repeating(
+        public_signals_push,
+        interval=28800,  # 8 hours
+        first=300,
+        data=PUBLIC_CHANNEL_ID,
+        name="public_signals"
+    )
+
+    logger.info("Bot started. Use Ctrl+C to stop.")
+    application.run_polling(allowed_updates=None)
+
+
+if __name__ == "__main__":
+    main()
 
