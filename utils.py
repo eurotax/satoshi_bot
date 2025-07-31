@@ -82,3 +82,41 @@ def format_signals(pairs, vip: bool = False):
         else "💎 Want more? [Join VIP](https://t.me/+sR2qa2jnr6o5MDk0) for exclusive updates!"
     )
     return header + body + footer
+
+
+# ---------------------------------------------------------------------------
+# Compatibility helpers expected by tests
+# ---------------------------------------------------------------------------
+
+async def fetch_pairs():
+    """Wrapper used in tests for ``fetch_dex_data``."""
+    return await fetch_dex_data()
+
+
+def filter_pairs(pairs):
+    """Wrapper used in tests for ``filter_signals``."""
+    return filter_signals(pairs)
+
+
+def format_pair_message(pair: dict, include_meta: bool = False) -> str:
+    """Return Markdown formatted message for a single pair."""
+    base = pair.get("baseToken", {}).get("symbol", "")
+    quote = pair.get("quoteToken", {}).get("symbol", "")
+    name = f"{base}/{quote}".strip("/")
+    price = float(pair.get("priceUsd", 0))
+    change = float(pair.get("priceChange", {}).get("h1", 0))
+    url = pair.get("url", "")
+    emoji = "📈" if change > 0 else "📉"
+
+    message = f"{emoji} [{name}]({url})\n💰 ${price:.6f} ({change:+.2f}%)"
+
+    if include_meta:
+        volume = float(pair.get("volume", {}).get("h24", 0))
+        liquidity = float(pair.get("liquidity", {}).get("usd", 0))
+        message += (
+            f"\n📊 Volume 24h: ${volume:,.0f}"
+            f"\n🔒 Liquidity: ${liquidity:,.0f}"
+        )
+
+    return message
+

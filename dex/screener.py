@@ -3,7 +3,7 @@
 import httpx
 import logging
 from config import MIN_VOLUME, MIN_LIQUIDITY, MIN_PRICE_CHANGE
-from alerts.utils import format_signal_message
+from utils import format_pair_message, format_signals
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,16 @@ def filter_signals(pairs: list) -> list:
             logger.warning(f"[dex/screener] Skipping malformed pair: {e}")
     return filtered
 
-async def get_filtered_signal_messages():
+async def get_filtered_signals() -> list:
+    """Return a list of filtered trading pairs."""
     raw_pairs = await fetch_dex_data()
-    top_signals = filter_signals(raw_pairs)[:5]
-    return [format_signal_message(pair) for pair in top_signals]
+    return filter_signals(raw_pairs)[:5]
+
+
+async def get_filtered_signal_messages() -> list:
+    pairs = await get_filtered_signals()
+    return [format_pair_message(pair) for pair in pairs]
+
+
+def format_signals_message(pairs: list, vip: bool = False) -> str:
+    return format_signals(pairs, vip)
