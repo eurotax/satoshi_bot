@@ -1,9 +1,11 @@
 # === handlers/alerts.py ===
 
 import logging
-import httpx
 from telegram import Update
 from telegram.ext import ContextTypes
+import httpx
+
+from dex.screener import filter_signals
 
 logger = logging.getLogger(__name__)
 
@@ -46,20 +48,34 @@ async def push_signals_to_channel(context: ContextTypes.DEFAULT_TYPE, is_vip: bo
 
 # Pobierz i przygotuj wiadomość
 async def fetch_and_format_signals(context, is_vip=True, include_footer=True):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(API_URL, timeout=10)
-        data = response.json()
+    """Fetch data from the API and build a formatted message."""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(API_URL, timeout=10)
+            if resp.is_error:
+                logger.warning(
+                    "API response %s for %s", resp.status_code, API_URL
+                )
+                resp.raise_for_status()
+            data = resp.json()
+    except Exception as exc:
+        logger.error("Failed fetching pairs: %s", exc)
+        data = {"pairs": []}
 
-    pairs = data.get("pairs", [])[:5]
+    pairs = data.get("pairs", [])
+    if not pairs:
+        return "⚠️ No data returned from DEXScreener"
+
+    filtered = filter_signals(pairs)[:5]
     message = "💎 *VIP SIGNALS*\n\n" if is_vip else "📊 *Market Update*\n\n"
 
-    for pair in pairs:
-        base = pair["baseToken"]["symbol"]
-        quote = pair["quoteToken"]["symbol"]
+    for pair in filtered:
+        base = pair.get("baseToken", {}).get("symbol", "?")
+        quote = pair.get("quoteToken", {}).get("symbol", "?")
         name = f"{base}/{quote}"
-        price = pair["priceUsd"]
-        change = pair["priceChange"]["h1"]
-        link = pair["url"]
+        price = pair.get("priceUsd", "0")
+        change = pair.get("priceChange", {}).get("h1", "0")
+        link = pair.get("url", "")
         emoji = "📈" if float(change) > 0 else "📉"
         message += f"{emoji} [{name}]({link})\n💰 ${price} ({change}%)\n\n"
 
@@ -67,6 +83,8 @@ async def fetch_and_format_signals(context, is_vip=True, include_footer=True):
         if is_vip:
             message += "🧠 *Exclusive analysis for VIP members only!*"
         else:
-            message += "🔔 Join [VIP Channel](https://t.me/+sR2qa2jnr6o5MDk0) for real-time alerts."
+            message += (
+                "🔔 Join [VIP Channel](https://t.me/+sR2qa2jnr6o5MDk0) for real-time alerts."
+            )
 
     return message
