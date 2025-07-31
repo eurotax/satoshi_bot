@@ -4,7 +4,12 @@ import logging
 import os
 from dotenv import load_dotenv
 from telegram.ext import Application, CommandHandler
-from handlers.commands import start_cmd, help_cmd, vip_cmd, status_cmd
+from handlers.commands import (
+    start_command,
+    help_command,
+    vip_command,
+    status_command,
+)
 from handlers.alerts import signals_command, vip_signals_push, public_signals_push
 from config import VIP_CHANNEL_ID, PUBLIC_CHANNEL_ID
 
@@ -28,10 +33,10 @@ def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
     # Command handlers
-    application.add_handler(CommandHandler("start", start_cmd))
-    application.add_handler(CommandHandler("help", help_cmd))
-    application.add_handler(CommandHandler("vip", vip_cmd))
-    application.add_handler(CommandHandler("status", status_cmd))
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("vip", vip_command))
+    application.add_handler(CommandHandler("status", status_command))
     application.add_handler(CommandHandler("signals", signals_command))
 
     # Schedule automatic signal publishing
