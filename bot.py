@@ -28,10 +28,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"User {user.id} ({user.username}) started the bot")
 
         welcome_message = (
-            f"👋 Welcome to Satoshi Signal Bot!\n\n"
-            "🔔 Get the latest crypto signals and market alerts\n"
-            "📊 Access real-time insights and analysis\n\n"
-            "Type /help to view available commands"
+    "👋 Welcome to Satoshi Signal Bot!\n\n"
+    "🔔 Get the latest crypto signals and market alerts\n"
+    "📊 Access real-time insights and analysis\n\n"
+    "Type /help to view available commands"
+)
+
         )
 
         await update.message.reply_text(welcome_message)
