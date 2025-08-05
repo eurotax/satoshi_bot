@@ -1,4 +1,4 @@
-python-telegram-bot[job-queue]==21.5
+# Required libraries for satoshi_bot
+python-telegram-bot[job-queue,webhooks]==21.5
 python-dotenv==1.1.1
 httpx~=0.28
-
