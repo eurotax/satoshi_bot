@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def _is_valid_webhook(url: str) -> bool:
+    """Validate webhook URL format."""
     try:
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https"):
@@ -73,8 +74,9 @@ def main():
         name="public_signals"
     )
 
-    logger.info("Bot started. Use Ctrl+C to stop.")
+    logger.info("Bot started successfully")
 
+    # Check for webhook mode
     webhook_url = os.getenv("WEBHOOK_URL")
     if webhook_url:
         if _is_valid_webhook(webhook_url):
@@ -92,9 +94,9 @@ def main():
             logger.error("Invalid WEBHOOK_URL '%s'. Falling back to polling mode.", webhook_url)
             application.run_polling(allowed_updates=None)
     else:
+        logger.info("Starting polling mode")
         application.run_polling(allowed_updates=None)
 
 
 if __name__ == "__main__":
     main()
-
