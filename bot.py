@@ -2,8 +2,11 @@
 
 import logging
 import os
+from urllib.parse import urlparse
+
 from dotenv import load_dotenv
 from telegram.ext import Application, CommandHandler
+
 from handlers.commands import (
     start_command,
     help_command,
@@ -23,6 +26,20 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+
+def _is_valid_webhook(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        if not parsed.netloc:
+            return False
+        # Accessing port property validates the port if provided
+        _ = parsed.port
+        return True
+    except Exception:
+        return False
 
 
 def main():
@@ -60,16 +77,20 @@ def main():
 
     webhook_url = os.getenv("WEBHOOK_URL")
     if webhook_url:
-        path = f"/{BOT_TOKEN}"
-        listen_port = int(os.getenv("PORT", 8443))
-        logger.info("Starting webhook at %s", webhook_url)
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=listen_port,
-            url_path=path,
-            webhook_url=f"{webhook_url}{path}",
-            allowed_updates=None,
-        )
+        if _is_valid_webhook(webhook_url):
+            path = f"/{BOT_TOKEN}"
+            listen_port = int(os.getenv("PORT", 8443))
+            logger.info("Starting webhook at %s", webhook_url)
+            application.run_webhook(
+                listen="0.0.0.0",
+                port=listen_port,
+                url_path=path,
+                webhook_url=f"{webhook_url}{path}",
+                allowed_updates=None,
+            )
+        else:
+            logger.error("Invalid WEBHOOK_URL '%s'. Falling back to polling mode.", webhook_url)
+            application.run_polling(allowed_updates=None)
     else:
         application.run_polling(allowed_updates=None)
 

@@ -21,6 +21,7 @@ pip install -r requirements.txt
 
 2. Create a `.env` file with `BOT_TOKEN` (or `TELEGRAM_TOKEN`) and any other credentials.
    When deploying on Render, set `WEBHOOK_URL` to your service URL to enable webhook mode and avoid polling conflicts.
+   The URL must include protocol and domain; invalid values are ignored and the bot falls back to polling.
 3. Run the bot
 
 ```bash
