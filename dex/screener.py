@@ -14,7 +14,7 @@ DEXSCREENER_PAIRS_API = "https://api.dexscreener.com/latest/dex/pairs"
 
 async def fetch_trending_pairs(limit: int = 50) -> List[Dict[str, Any]]:
     """Fetch trending pairs using search endpoint with popular tokens."""
-    trending_queries = ["SOL", "BONK", "JUP", "WIF", "PEPE"]
+    trending_queries = ["SOL", "BONK", "JUP", "WIF", "PEPE", "RAY", "ORCA"]
     all_pairs = []
     
     try:
@@ -30,8 +30,14 @@ async def fetch_trending_pairs(limit: int = 50) -> List[Dict[str, Any]]:
                     data = response.json()
                     pairs = data.get("pairs", [])
                     
-                    # Filter only Solana pairs
-                    solana_pairs = [p for p in pairs if p.get("chainId") == "solana"]
+                    # Filter only Solana pairs and ensure they have required data
+                    solana_pairs = []
+                    for p in pairs:
+                        if (p.get("chainId") == "solana" and 
+                            p.get("baseToken", {}).get("symbol") and
+                            p.get("quoteToken", {}).get("symbol")):
+                            solana_pairs.append(p)
+                    
                     all_pairs.extend(solana_pairs[:10])  # Top 10 per query
                     
                 except Exception as e:
@@ -69,23 +75,33 @@ async def fetch_pair_by_address(chain_id: str, pair_id: str) -> Optional[Dict[st
         return None
 
 
+def safe_float_convert(value, default=0.0) -> float:
+    """Safely convert value to float, handling None and string values."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def filter_signals(pairs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Filter pairs based on volume, liquidity, and price change criteria."""
     filtered = []
     
     for pair in pairs:
         try:
-            # Extract volume (24h)
+            # Extract volume (24h) with safe conversion
             volume_data = pair.get("volume", {})
-            volume_24h = float(volume_data.get("h24", 0))
+            volume_24h = safe_float_convert(volume_data.get("h24"))
             
-            # Extract liquidity
+            # Extract liquidity with safe conversion
             liquidity_data = pair.get("liquidity", {})
-            liquidity_usd = float(liquidity_data.get("usd", 0))
+            liquidity_usd = safe_float_convert(liquidity_data.get("usd"))
             
-            # Extract price change (1h)
+            # Extract price change (1h) with safe conversion
             price_change_data = pair.get("priceChange", {})
-            price_change_1h = float(price_change_data.get("h1", 0))
+            price_change_1h = safe_float_convert(price_change_data.get("h1"))
             
             # Apply filters
             if (
@@ -96,12 +112,12 @@ def filter_signals(pairs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             ):
                 filtered.append(pair)
                 
-        except (ValueError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.warning(f"[dex/screener] Skipping malformed pair: {e}")
             continue
             
     # Sort by volume descending
-    filtered.sort(key=lambda x: float(x.get("volume", {}).get("h24", 0)), reverse=True)
+    filtered.sort(key=lambda x: safe_float_convert(x.get("volume", {}).get("h24")), reverse=True)
     return filtered
 
 
@@ -130,8 +146,8 @@ def is_quality_pair(pair: Dict[str, Any]) -> bool:
             return False
             
         # Check market cap (if available)
-        market_cap = pair.get("marketCap")
-        if market_cap and market_cap > 0:
+        market_cap = safe_float_convert(pair.get("marketCap"))
+        if market_cap > 0:
             # Skip very low market cap tokens (potential scams)
             if market_cap < 1000:  # Less than $1k market cap
                 return False
@@ -161,15 +177,15 @@ def format_pair_message(pair: Dict[str, Any]) -> str:
         quote_symbol = quote_token.get("symbol", "?")
         pair_name = f"{base_symbol}/{quote_symbol}"
         
-        # Extract price and changes
-        price_usd = float(pair.get("priceUsd", 0))
+        # Extract price and changes with safe conversion
+        price_usd = safe_float_convert(pair.get("priceUsd"))
         price_change = pair.get("priceChange", {})
-        change_1h = float(price_change.get("h1", 0))
-        change_24h = float(price_change.get("h24", 0))
+        change_1h = safe_float_convert(price_change.get("h1"))
+        change_24h = safe_float_convert(price_change.get("h24"))
         
-        # Extract volume and liquidity
-        volume = float(pair.get("volume", {}).get("h24", 0))
-        liquidity = float(pair.get("liquidity", {}).get("usd", 0))
+        # Extract volume and liquidity with safe conversion
+        volume = safe_float_convert(pair.get("volume", {}).get("h24"))
+        liquidity = safe_float_convert(pair.get("liquidity", {}).get("usd"))
         
         # Get DEXScreener URL
         url = pair.get("url", "")
@@ -177,10 +193,18 @@ def format_pair_message(pair: Dict[str, Any]) -> str:
         # Choose emoji based on price change
         emoji = "📈" if change_1h > 0 else "📉"
         
+        # Format price with appropriate precision
+        if price_usd >= 1:
+            price_str = f"${price_usd:.4f}"
+        elif price_usd >= 0.0001:
+            price_str = f"${price_usd:.8f}"
+        else:
+            price_str = f"${price_usd:.12f}"
+        
         # Format message
         message = (
             f"{emoji} [{pair_name}]({url})\n"
-            f"💰 ${price_usd:.8f}\n"
+            f"💰 {price_str}\n"
             f"📊 1h: {change_1h:+.2f}% | 24h: {change_24h:+.2f}%\n"
             f"💹 Volume: ${volume:,.0f}\n"
             f"🔒 Liquidity: ${liquidity:,.0f}"
