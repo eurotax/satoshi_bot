@@ -1,11 +1,12 @@
-# === bot.py ===
+# === bot.py === 
 
 import logging
 import os
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
-from telegram.ext import Application, CommandHandler
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 
 from handlers.commands import (
     start_command,
@@ -43,12 +44,29 @@ def _is_valid_webhook(url: str) -> bool:
         return False
 
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle errors that occur in the bot."""
+    logger.error("Exception while handling an update:", exc_info=context.error)
+    
+    # Send error message to user if possible
+    if isinstance(update, Update) and update.effective_message:
+        try:
+            await update.effective_message.reply_text(
+                "❌ Wystąpił błąd. Spróbuj ponownie za chwilę."
+            )
+        except Exception:
+            pass
+
+
 def main():
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN is not set in .env file")
         return
 
     application = Application.builder().token(BOT_TOKEN).build()
+
+    # Add error handler - WAŻNE!
+    application.add_error_handler(error_handler)
 
     # Command handlers
     application.add_handler(CommandHandler("start", start_command))
@@ -76,7 +94,7 @@ def main():
 
     logger.info("Bot started successfully")
 
-    # Check for webhook mode
+    # Check for webhook mode - PREFERUJ WEBHOOK na Render
     webhook_url = os.getenv("WEBHOOK_URL")
     if webhook_url:
         if _is_valid_webhook(webhook_url):
@@ -89,13 +107,20 @@ def main():
                 url_path=path,
                 webhook_url=f"{webhook_url}{path}",
                 allowed_updates=None,
+                drop_pending_updates=True,  # WAŻNE: usuń pending updates
             )
         else:
             logger.error("Invalid WEBHOOK_URL '%s'. Falling back to polling mode.", webhook_url)
-            application.run_polling(allowed_updates=None)
+            application.run_polling(
+                allowed_updates=None,
+                drop_pending_updates=True  # WAŻNE: usuń pending updates
+            )
     else:
         logger.info("Starting polling mode")
-        application.run_polling(allowed_updates=None)
+        application.run_polling(
+            allowed_updates=None,
+            drop_pending_updates=True  # WAŻNE: usuń pending updates
+        )
 
 
 if __name__ == "__main__":
