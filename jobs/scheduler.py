@@ -4,6 +4,7 @@ import logging
 from telegram.ext import ContextTypes
 from config import VIP_CHANNEL_ID, PUBLIC_CHANNEL_ID
 from scheduler.publisher import publish_job
+from jobs.bybit import bybit_alert_job
 
 logger = logging.getLogger(__name__)
 
@@ -31,4 +32,10 @@ def schedule_jobs(job_queue):
         first=300,
         data=PUBLIC_CHANNEL_ID,
         name="public_signals",
+    )
+    job_queue.run_repeating(
+        bybit_alert_job,
+        interval=300,  # 5 minutes
+        first=120,
+        name="bybit_alerts",
     )
