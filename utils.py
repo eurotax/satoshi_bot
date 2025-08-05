@@ -4,7 +4,6 @@ import httpx
 import logging
 from typing import List, Dict, Any
 from config import MIN_VOLUME, MIN_LIQUIDITY, MIN_PRICE_CHANGE
-from filters.scam_filters import passes_scam_filters
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +13,7 @@ async def fetch_dex_data() -> List[Dict[str, Any]]:
     Fetch DEX data using the search API for trending tokens.
     This is the main data fetching function.
     """
+    # Import inside function to avoid circular imports
     from dex.screener import fetch_trending_pairs
     return await fetch_trending_pairs()
 
@@ -23,6 +23,8 @@ def is_legit_token(pair: Dict[str, Any]) -> bool:
     Determine if a token/pair appears legitimate using available data.
     This replaces the old broken logic with proper checks.
     """
+    # Import inside function to avoid circular imports
+    from filters.scam_filters import passes_scam_filters
     return passes_scam_filters(pair)
 
 
@@ -35,15 +37,15 @@ def filter_signals(pairs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     
     for pair in pairs:
         try:
-            # Extract metrics
+            # Extract metrics with safe conversion
             volume_data = pair.get("volume", {})
-            volume_24h = float(volume_data.get("h24", 0))
+            volume_24h = float(volume_data.get("h24", 0)) if volume_data.get("h24") else 0
             
             liquidity_data = pair.get("liquidity", {})
-            liquidity_usd = float(liquidity_data.get("usd", 0))
+            liquidity_usd = float(liquidity_data.get("usd", 0)) if liquidity_data.get("usd") else 0
             
             price_change_data = pair.get("priceChange", {})
-            price_change_1h = float(price_change_data.get("h1", 0))
+            price_change_1h = float(price_change_data.get("h1", 0)) if price_change_data.get("h1") else 0
             
             # Apply basic filters
             if volume_24h < MIN_VOLUME:
@@ -75,6 +77,7 @@ def format_signals(pairs: List[Dict[str, Any]], vip: bool = False) -> str:
     Format trading pairs into a Telegram message.
     This function maintains backward compatibility.
     """
+    # Import inside function to avoid circular imports
     from dex.screener import format_signals_message
     return format_signals_message(pairs, vip)
 
@@ -82,7 +85,7 @@ def format_signals(pairs: List[Dict[str, Any]], vip: bool = False) -> str:
 def format_pair_message(pair: Dict[str, Any], include_meta: bool = False) -> str:
     """
     Format a single trading pair into a Telegram message.
-    Updated to use real DEXScreener API structure.
+    Updated to use real DEXScreener API structure with safe number formatting.
     """
     try:
         # Extract token information
@@ -93,10 +96,19 @@ def format_pair_message(pair: Dict[str, Any], include_meta: bool = False) -> str
         quote_symbol = quote_token.get("symbol", "?")
         pair_name = f"{base_symbol}/{quote_symbol}"
         
-        # Extract price and change
-        price_usd = float(pair.get("priceUsd", 0))
+        # Extract price and change with safe conversion
+        price_usd_str = pair.get("priceUsd", "0")
+        try:
+            price_usd = float(price_usd_str) if price_usd_str else 0
+        except (ValueError, TypeError):
+            price_usd = 0
+            
         price_change_data = pair.get("priceChange", {})
-        change_1h = float(price_change_data.get("h1", 0))
+        change_1h_str = price_change_data.get("h1", "0")
+        try:
+            change_1h = float(change_1h_str) if change_1h_str else 0
+        except (ValueError, TypeError):
+            change_1h = 0
         
         # Get URL
         url = pair.get("url", "")
@@ -104,13 +116,32 @@ def format_pair_message(pair: Dict[str, Any], include_meta: bool = False) -> str
         # Choose emoji
         emoji = "📈" if change_1h > 0 else "📉"
         
+        # Format price with appropriate precision
+        if price_usd >= 1:
+            price_str = f"${price_usd:.4f}"
+        elif price_usd >= 0.0001:
+            price_str = f"${price_usd:.8f}"
+        else:
+            price_str = f"${price_usd:.12f}"
+        
         # Basic message
-        message = f"{emoji} [{pair_name}]({url})\n💰 ${price_usd:.8f} ({change_1h:+.2f}%)"
+        message = f"{emoji} [{pair_name}]({url})\n💰 {price_str} ({change_1h:+.2f}%)"
         
         # Add metadata if requested
         if include_meta:
-            volume_24h = float(pair.get("volume", {}).get("h24", 0))
-            liquidity_usd = float(pair.get("liquidity", {}).get("usd", 0))
+            volume_data = pair.get("volume", {})
+            volume_24h_str = volume_data.get("h24", "0")
+            try:
+                volume_24h = float(volume_24h_str) if volume_24h_str else 0
+            except (ValueError, TypeError):
+                volume_24h = 0
+                
+            liquidity_data = pair.get("liquidity", {})
+            liquidity_usd_str = liquidity_data.get("usd", "0")
+            try:
+                liquidity_usd = float(liquidity_usd_str) if liquidity_usd_str else 0
+            except (ValueError, TypeError):
+                liquidity_usd = 0
             
             message += (
                 f"\n📊 Volume 24h: ${volume_24h:,.0f}"
