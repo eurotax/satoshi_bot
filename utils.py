@@ -113,4 +113,23 @@ def format_pair_message(pair: Dict[str, Any], include_meta: bool = False) -> str
             liquidity_usd = float(pair.get("liquidity", {}).get("usd", 0))
             
             message += (
-                f"\n📊 Volume 24h: ${volume_
+                f"\n📊 Volume 24h: ${volume_24h:,.0f}"
+                f"\n🔒 Liquidity: ${liquidity_usd:,.0f}"
+            )
+        
+        return message
+        
+    except Exception as e:
+        logger.error(f"Error formatting pair message: {e}")
+        return "❌ Error formatting pair data"
+
+
+# Legacy compatibility functions
+async def fetch_pairs() -> List[Dict[str, Any]]:
+    """Legacy wrapper for fetch_dex_data() - used in tests."""
+    return await fetch_dex_data()
+
+
+def filter_pairs(pairs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Legacy wrapper for filter_signals() - used in tests."""
+    return filter_signals(pairs)
