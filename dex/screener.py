@@ -12,6 +12,16 @@ DEXSCREENER_SEARCH_API = "https://api.dexscreener.com/latest/dex/search"
 DEXSCREENER_PAIRS_API = "https://api.dexscreener.com/latest/dex/pairs"
 
 
+def safe_float_convert(value, default=0.0) -> float:
+    """Safely convert value to float, handling None and string values."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
 async def fetch_trending_pairs(limit: int = 50) -> List[Dict[str, Any]]:
     """Fetch trending pairs using search endpoint with popular tokens."""
     trending_queries = ["SOL", "BONK", "JUP", "WIF", "PEPE", "RAY", "ORCA"]
@@ -73,16 +83,6 @@ async def fetch_pair_by_address(chain_id: str, pair_id: str) -> Optional[Dict[st
     except Exception as e:
         logger.error(f"[dex/screener] Failed to fetch pair {pair_id}: {e}")
         return None
-
-
-def safe_float_convert(value, default=0.0) -> float:
-    """Safely convert value to float, handling None and string values."""
-    if value is None:
-        return default
-    try:
-        return float(value)
-    except (ValueError, TypeError):
-        return default
 
 
 def filter_signals(pairs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
