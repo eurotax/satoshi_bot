@@ -2,132 +2,115 @@
 
 import httpx
 import logging
+from typing import List, Dict, Any
 from config import MIN_VOLUME, MIN_LIQUIDITY, MIN_PRICE_CHANGE
+from filters.scam_filters import passes_scam_filters
 
 logger = logging.getLogger(__name__)
 
 
-async def fetch_dex_data():
-    """Fetch top Solana pairs from DEXScreener with basic retries."""
-    urls = [
-        "https://api.dexscreener.com/latest/dex/pairs/solana",
-        "https://api.dexscreener.io/latest/dex/pairs/solana",
-    ]
-    for attempt in range(3):
-        for url in urls:
-            try:
-                async with httpx.AsyncClient(timeout=10) as client:
-                    response = await client.get(url)
-                    if response.is_error:
-                        logger.warning(
-                            "DEXScreener returned %s for %s on attempt %s",
-                            response.status_code,
-                            url,
-                            attempt + 1,
-                        )
-                        continue
-                    data = response.json()
-                    return data.get("pairs", [])
-            except Exception as e:
-                logger.error("Error fetching DEX data from %s: %s", url, e)
-    return []
+async def fetch_dex_data() -> List[Dict[str, Any]]:
+    """
+    Fetch DEX data using the search API for trending tokens.
+    This is the main data fetching function.
+    """
+    from dex.screener import fetch_trending_pairs
+    return await fetch_trending_pairs()
 
 
-def is_legit_token(pair):
-    """Simulate anti-scam heuristics (can be enhanced with on-chain data)"""
-    try:
-        tax = pair.get("txns", {}).get("h1", {}).get("buys", 0) + pair.get("txns", {}).get("h1", {}).get("sells", 0)
-        renounced = pair.get("pairCreatedAt", 0) > 0  # Placeholder for renounce check
-        locked = pair.get("liquidity", {}).get("locked", False)  # Placeholder
-
-        return renounced and locked and tax >= 5
-    except Exception:
-        return False
+def is_legit_token(pair: Dict[str, Any]) -> bool:
+    """
+    Determine if a token/pair appears legitimate using available data.
+    This replaces the old broken logic with proper checks.
+    """
+    return passes_scam_filters(pair)
 
 
-def filter_signals(pairs):
-    """Filter based on volume, liquidity, and price change"""
+def filter_signals(pairs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Filter trading pairs based on volume, liquidity, price change, and legitimacy.
+    This is the main filtering function used throughout the app.
+    """
     filtered = []
+    
     for pair in pairs:
         try:
-            volume = float(pair.get("volume", {}).get("h24", 0))
-            liquidity = float(pair.get("liquidity", {}).get("usd", 0))
-            change = float(pair.get("priceChange", {}).get("h1", 0))
-
-            if volume >= MIN_VOLUME and liquidity >= MIN_LIQUIDITY and abs(change) >= MIN_PRICE_CHANGE:
-                if is_legit_token(pair):
-                    filtered.append(pair)
-        except Exception as e:
-            logger.warning(f"Pair skipped due to parsing error: {e}")
+            # Extract metrics
+            volume_data = pair.get("volume", {})
+            volume_24h = float(volume_data.get("h24", 0))
+            
+            liquidity_data = pair.get("liquidity", {})
+            liquidity_usd = float(liquidity_data.get("usd", 0))
+            
+            price_change_data = pair.get("priceChange", {})
+            price_change_1h = float(price_change_data.get("h1", 0))
+            
+            # Apply basic filters
+            if volume_24h < MIN_VOLUME:
+                continue
+                
+            if liquidity_usd < MIN_LIQUIDITY:
+                continue
+                
+            if abs(price_change_1h) < MIN_PRICE_CHANGE:
+                continue
+                
+            # Apply legitimacy filters
+            if not is_legit_token(pair):
+                continue
+                
+            filtered.append(pair)
+            
+        except (ValueError, TypeError, KeyError) as e:
+            logger.warning(f"Skipping malformed pair: {e}")
             continue
+    
+    # Sort by volume descending
+    filtered.sort(key=lambda x: float(x.get("volume", {}).get("h24", 0)), reverse=True)
     return filtered
 
 
-def format_signals(pairs, vip: bool = False):
-    """Format signal messages for Telegram using Markdown"""
-    if not pairs:
-        return "⚠️ No high-quality signals found right now. Please check again later."
+def format_signals(pairs: List[Dict[str, Any]], vip: bool = False) -> str:
+    """
+    Format trading pairs into a Telegram message.
+    This function maintains backward compatibility.
+    """
+    from dex.screener import format_signals_message
+    return format_signals_message(pairs, vip)
 
-    header = "💎 *VIP SIGNALS*\n\n" if vip else "📊 *Top Crypto Pairs Today*\n\n"
-    body = ""
 
-    for pair in pairs:
-        name = f"{pair['baseToken']['symbol']}/{pair['quoteToken']['symbol']}"
-        price = float(pair.get("priceUsd", 0))
-        change = float(pair.get("priceChange", {}).get("h1", 0))
-        volume = float(pair.get("volume", {}).get("h24", 0))
-        liquidity = float(pair.get("liquidity", {}).get("usd", 0))
+def format_pair_message(pair: Dict[str, Any], include_meta: bool = False) -> str:
+    """
+    Format a single trading pair into a Telegram message.
+    Updated to use real DEXScreener API structure.
+    """
+    try:
+        # Extract token information
+        base_token = pair.get("baseToken", {})
+        quote_token = pair.get("quoteToken", {})
+        
+        base_symbol = base_token.get("symbol", "?")
+        quote_symbol = quote_token.get("symbol", "?")
+        pair_name = f"{base_symbol}/{quote_symbol}"
+        
+        # Extract price and change
+        price_usd = float(pair.get("priceUsd", 0))
+        price_change_data = pair.get("priceChange", {})
+        change_1h = float(price_change_data.get("h1", 0))
+        
+        # Get URL
         url = pair.get("url", "")
-        emoji = "📈" if change > 0 else "📉"
-
-        body += (
-            f"{emoji} [{name}]({url})\n"
-            f"💰 Price: `${price:.6f}`\n"
-            f"💹 1h Change: `{change:.2f}%`\n"
-            f"📊 Volume 24h: `${volume:,.0f}`\n"
-            f"🔒 Liquidity: `${liquidity:,.0f}`\n\n"
-        )
-
-    footer = (
-        "🔒 *Private signals for VIP members only.*" if vip
-        else "💎 Want more? [Join VIP](https://t.me/+sR2qa2jnr6o5MDk0) for exclusive updates!"
-    )
-    return header + body + footer
-
-
-# ---------------------------------------------------------------------------
-# Compatibility helpers expected by tests
-# ---------------------------------------------------------------------------
-
-async def fetch_pairs():
-    """Wrapper used in tests for ``fetch_dex_data``."""
-    return await fetch_dex_data()
-
-
-def filter_pairs(pairs):
-    """Wrapper used in tests for ``filter_signals``."""
-    return filter_signals(pairs)
-
-
-def format_pair_message(pair: dict, include_meta: bool = False) -> str:
-    """Return Markdown formatted message for a single pair."""
-    base = pair.get("baseToken", {}).get("symbol", "")
-    quote = pair.get("quoteToken", {}).get("symbol", "")
-    name = f"{base}/{quote}".strip("/")
-    price = float(pair.get("priceUsd", 0))
-    change = float(pair.get("priceChange", {}).get("h1", 0))
-    url = pair.get("url", "")
-    emoji = "📈" if change > 0 else "📉"
-
-    message = f"{emoji} [{name}]({url})\n💰 ${price:.6f} ({change:+.2f}%)"
-
-    if include_meta:
-        volume = float(pair.get("volume", {}).get("h24", 0))
-        liquidity = float(pair.get("liquidity", {}).get("usd", 0))
-        message += (
-            f"\n📊 Volume 24h: ${volume:,.0f}"
-            f"\n🔒 Liquidity: ${liquidity:,.0f}"
-        )
-
-    return message
-
+        
+        # Choose emoji
+        emoji = "📈" if change_1h > 0 else "📉"
+        
+        # Basic message
+        message = f"{emoji} [{pair_name}]({url})\n💰 ${price_usd:.8f} ({change_1h:+.2f}%)"
+        
+        # Add metadata if requested
+        if include_meta:
+            volume_24h = float(pair.get("volume", {}).get("h24", 0))
+            liquidity_usd = float(pair.get("liquidity", {}).get("usd", 0))
+            
+            message += (
+                f"\n📊 Volume 24h: ${volume_
