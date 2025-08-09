@@ -1,0 +1,36 @@
+name: anthropic-python
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: Smoke test Anthropic client
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install --upgrade anthropic
+
+      - name: Smoke test
+        run: |
+          python - <<'PY'
+          import os, anthropic
+          key = os.environ.get("ANTHROPIC_API_KEY")
+          assert key, "Missing ANTHROPIC_API_KEY"
+          client = anthropic.Anthropic(api_key=key)
+          print("Anthropic client initialized OK")
+          PY
