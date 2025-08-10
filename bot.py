@@ -344,12 +344,7 @@ class SafeBotApplication:
         logger.info(f"Starting webhook mode: {webhook_url}")
         
         try:
-            await self.application.initialize()
-            await self.application.start()
-            
-            monitor_task = asyncio.create_task(self._memory_monitor())
-            
-            # FIXED: Use correct parameters for run_webhook
+            # FIXED: Simpler webhook setup without graceful shutdown conflicts
             await self.application.run_webhook(
                 listen="0.0.0.0",
                 port=listen_port,
@@ -359,40 +354,29 @@ class SafeBotApplication:
                 drop_pending_updates=True
             )
             
-            monitor_task.cancel()
-            
         except Exception as e:
             logger.error(f"Error in webhook mode: {e}")
             raise
-        finally:
-            await self._graceful_shutdown()
     
     async def start(self):
-        """Main bot startup"""
+        """Main bot startup - SIMPLIFIED"""
         if not BOT_TOKEN:
             logger.error("BOT_TOKEN not found in environment")
             return
         
         logger.info("SATOSHI SIGNAL BOT STARTING...")
         logger.info(f"Start time: {datetime.now()}")
-        logger.info(f"Python version: {os.sys.version}")
         
         try:
             self.application = (
                 Application.builder()
                 .token(BOT_TOKEN)
-                .read_timeout(30)
-                .write_timeout(30)
-                .connect_timeout(30)
-                .pool_timeout(30)
-                .concurrent_updates(True)
                 .build()
             )
             
             self._running = True
             
-            await self._setup_signal_handlers()
-            
+            # Setup handlers without complex initialization
             self._setup_handlers()
             
             webhook_url = os.getenv("WEBHOOK_URL")
@@ -417,20 +401,31 @@ class SafeBotApplication:
 bot_app = SafeBotApplication()
 
 def main():
-    """Main entry point with proper async handling"""
+    """Main entry point - SIMPLIFIED FOR WEBHOOK"""
     try:
-        if os.name == 'nt':
-            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-        else:
-            logger.info("Using default asyncio event loop")
+        logger.info("Starting Satoshi Signal Bot...")
         
-        asyncio.run(bot_app.start())
+        # Create new event loop for clean startup
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            loop.run_until_complete(bot_app.start())
+        finally:
+            # Clean shutdown of event loop
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+            
+            if pending:
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            
+            loop.close()
         
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt received")
     except Exception as e:
         logger.error(f"Fatal error in main: {e}", exc_info=True)
-        raise
 
 if __name__ == "__main__":
     main()
