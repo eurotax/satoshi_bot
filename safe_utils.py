@@ -1,6 +1,3 @@
-# === safe_utils.py - NAPRAWIA CRASHES I BŁĘDY ===
-# Stwórz ten plik w głównym folderze projektu
-
 import math
 import logging
 import asyncio
@@ -12,9 +9,8 @@ logger = logging.getLogger(__name__)
 
 def safe_float_convert(value: Any, default: float = 0.0) -> float:
     """
-    🛡️ NAPRAWIA: Crashes gdy API zwraca None, "null", lub invalid data
-    PRZED: float(data.get("h24")) → CRASH jeśli None
-    PO: safe_float_convert(data.get("h24")) → Zawsze działa
+    Safe float conversion with full validation
+    Handles None, str, int, float, and edge cases
     """
     if value is None:
         return default
@@ -44,7 +40,7 @@ def safe_float_convert(value: Any, default: float = 0.0) -> float:
     return default
 
 def safe_int_convert(value: Any, default: int = 0) -> int:
-    """🛡️ Bezpieczna konwersja do int"""
+    """Safe int conversion"""
     try:
         float_val = safe_float_convert(value, default)
         return int(float_val)
@@ -53,8 +49,8 @@ def safe_int_convert(value: Any, default: int = 0) -> int:
 
 def validate_pair_data(pair: dict) -> bool:
     """
-    🔍 NAPRAWIA: Bot próbuje procesować niepełne dane z API
-    Sprawdza czy dane są kompletne przed użyciem
+    Validate DEXScreener API data structure
+    Checks if all required fields are present and valid
     """
     if not isinstance(pair, dict):
         return False
@@ -85,8 +81,8 @@ def validate_pair_data(pair: dict) -> bool:
 
 def retry_with_exponential_backoff(max_retries: int = 3, base_delay: float = 1.0):
     """
-    🔄 NAPRAWIA: Temporary API failures crashing bot
-    Automatycznie retry failed API calls
+    Decorator for automatic retry with exponential backoff
+    Used for API calls that may temporarily fail
     """
     def decorator(func):
         @wraps(func)
@@ -112,7 +108,7 @@ def retry_with_exponential_backoff(max_retries: int = 3, base_delay: float = 1.0
     return decorator
 
 def log_function_call(func):
-    """🔍 Dodaje logging dla debugging"""
+    """Add logging for debugging"""
     @wraps(func)
     async def wrapper(*args, **kwargs):
         start_time = time.time()
