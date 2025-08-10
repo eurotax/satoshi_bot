@@ -7,7 +7,7 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "1.0.0",
     "axios": "^1.7.3",
     "express": "^4.19.2"
   }
