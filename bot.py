@@ -1,11 +1,9 @@
 import logging
 import os
 import asyncio
-import signal
 import gc
 import time
 from datetime import datetime
-from urllib.parse import urlparse
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -34,9 +32,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class MemorySafeJobManager:
-    """
-    Memory-safe job manager that prevents job accumulation
-    """
+    """Memory-safe job manager that prevents job accumulation"""
     def __init__(self):
         self.jobs = {}
         self.max_jobs = 20
@@ -127,43 +123,11 @@ class MemorySafeJobManager:
         }
 
 class SafeBotApplication:
-    """
-    Comprehensive error handling and recovery
-    """
+    """Simplified bot application with polling only"""
     def __init__(self):
         self.application: Optional[Application] = None
         self.job_manager = MemorySafeJobManager()
-        self._shutdown_event = asyncio.Event()
-        self._running = False
         self._start_time = time.time()
-    
-    def _validate_webhook_url(self, url: str) -> bool:
-        """Enhanced webhook validation"""
-        if not url:
-            return False
-        
-        try:
-            parsed = urlparse(url)
-            
-            if parsed.scheme not in ("http", "https"):
-                logger.warning(f"Invalid webhook scheme: {parsed.scheme}")
-                return False
-            
-            if not parsed.netloc:
-                logger.warning("Empty webhook netloc")
-                return False
-            
-            if parsed.hostname in ('localhost', '127.0.0.1'):
-                if os.getenv('ENVIRONMENT') == 'production':
-                    logger.error("Localhost webhook in production")
-                    return False
-                logger.info("Localhost webhook allowed in development")
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Webhook validation error: {e}")
-            return False
     
     async def _enhanced_error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Enhanced error handling"""
@@ -198,10 +162,6 @@ class SafeBotApplication:
         if isinstance(context.error, MemoryError):
             logger.critical("MEMORY ERROR - forcing cleanup")
             gc.collect()
-            
-            if self._get_memory_usage() > 1024:
-                logger.critical("Memory still high, initiating restart")
-                await self._graceful_shutdown()
     
     def _get_memory_usage(self) -> float:
         """Get current memory usage in MB"""
@@ -211,49 +171,15 @@ class SafeBotApplication:
         except ImportError:
             return 0.0
     
-    async def _setup_signal_handlers(self):
-        """Setup graceful shutdown"""
-        def signal_handler(signum, frame):
-            logger.info(f"Signal {signum} received, shutting down...")
-            asyncio.create_task(self._graceful_shutdown())
-        
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
-    
-    async def _graceful_shutdown(self):
-        """Clean shutdown procedure"""
-        logger.info("Starting graceful shutdown...")
-        
-        try:
-            if self.application:
-                await self.application.stop()
-                logger.info("Application stopped")
-            
-            try:
-                from dex.screener import cleanup
-                await cleanup()
-                logger.info("HTTP connections closed")
-            except Exception as e:
-                logger.warning(f"HTTP cleanup error: {e}")
-            
-            gc.collect()
-            logger.info("Memory cleanup completed")
-            
-            self._shutdown_event.set()
-            
-        except Exception as e:
-            logger.error(f"Error during shutdown: {e}")
-        finally:
-            logger.info("Graceful shutdown completed")
-    
     async def _memory_monitor(self):
         """Background memory monitoring"""
-        while self._running:
+        while True:
             try:
                 memory_mb = self._get_memory_usage()
                 uptime_hours = (time.time() - self._start_time) / 3600
                 
-                if int(uptime_hours) != int(uptime_hours - 0.0167):
+                # Log stats every hour
+                if int(uptime_hours) % 1 == 0 and int(uptime_hours) > 0:
                     job_stats = self.job_manager.get_stats()
                     logger.info(
                         f"Bot stats - Memory: {memory_mb:.1f}MB, "
@@ -268,7 +194,7 @@ class SafeBotApplication:
                     gc.collect()
                     self.job_manager._cleanup_completed_jobs()
                 
-                await asyncio.sleep(300)
+                await asyncio.sleep(300)  # Check every 5 minutes
                 
             except Exception as e:
                 logger.error(f"Memory monitor error: {e}")
@@ -307,120 +233,57 @@ class SafeBotApplication:
         
         logger.info("All handlers and jobs configured")
     
-    async def run_polling(self):
-        """Run bot in polling mode"""
-        logger.info("Starting polling mode...")
-        
-        try:
-            await self.application.initialize()
-            await self.application.start()
-            
-            monitor_task = asyncio.create_task(self._memory_monitor())
-            
-            await self.application.updater.start_polling(
-                allowed_updates=None,
-                drop_pending_updates=True,
-                timeout=30,
-                poll_interval=1.0
-            )
-            
-            logger.info("Bot polling started successfully")
-            
-            await self._shutdown_event.wait()
-            
-            monitor_task.cancel()
-            
-        except Exception as e:
-            logger.error(f"Error in polling mode: {e}")
-            raise
-        finally:
-            await self._graceful_shutdown()
-    
-    async def run_webhook(self, webhook_url: str):
-        """Run bot in webhook mode - FIXED VERSION"""
-        path = f"/{BOT_TOKEN}"
-        listen_port = int(os.getenv("PORT", 8443))
-        
-        logger.info(f"Starting webhook mode: {webhook_url}")
-        
-        try:
-            # FIXED: Simpler webhook setup without graceful shutdown conflicts
-            await self.application.run_webhook(
-                listen="0.0.0.0",
-                port=listen_port,
-                url_path=path,
-                webhook_url=f"{webhook_url}{path}",
-                allowed_updates=None,
-                drop_pending_updates=True
-            )
-            
-        except Exception as e:
-            logger.error(f"Error in webhook mode: {e}")
-            raise
-    
-    async def start(self):
-        """Main bot startup - SIMPLIFIED"""
+    async def run(self):
+        """Main bot execution - POLLING ONLY"""
         if not BOT_TOKEN:
             logger.error("BOT_TOKEN not found in environment")
             return
         
         logger.info("SATOSHI SIGNAL BOT STARTING...")
         logger.info(f"Start time: {datetime.now()}")
+        logger.info("Using POLLING mode (webhook disabled)")
         
         try:
+            # Create application
             self.application = (
                 Application.builder()
                 .token(BOT_TOKEN)
                 .build()
             )
             
-            self._running = True
-            
-            # Setup handlers without complex initialization
+            # Setup handlers
             self._setup_handlers()
             
-            webhook_url = os.getenv("WEBHOOK_URL")
+            # Start memory monitoring
+            monitor_task = asyncio.create_task(self._memory_monitor())
             
-            if webhook_url and self._validate_webhook_url(webhook_url):
-                logger.info(f"Using webhook mode: {webhook_url}")
-                await self.run_webhook(webhook_url)
-            else:
-                if webhook_url:
-                    logger.warning(f"Invalid WEBHOOK_URL: {webhook_url}")
-                logger.info("Using polling mode")
-                await self.run_polling()
-                
+            # Start polling
+            logger.info("Starting bot polling...")
+            await self.application.run_polling(
+                allowed_updates=None,
+                drop_pending_updates=True,
+                timeout=30,
+                poll_interval=2.0
+            )
+            
+            # This line won't be reached in normal operation
+            monitor_task.cancel()
+            
+        except KeyboardInterrupt:
+            logger.info("Keyboard interrupt received")
         except Exception as e:
             logger.error(f"Critical startup error: {e}", exc_info=True)
-            raise
         finally:
-            self._running = False
             logger.info("Bot stopped")
 
 # Global bot instance
 bot_app = SafeBotApplication()
 
 def main():
-    """Main entry point - SIMPLIFIED FOR WEBHOOK"""
+    """Simple main function for polling mode"""
     try:
-        logger.info("Starting Satoshi Signal Bot...")
-        
-        # Create new event loop for clean startup
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        try:
-            loop.run_until_complete(bot_app.start())
-        finally:
-            # Clean shutdown of event loop
-            pending = asyncio.all_tasks(loop)
-            for task in pending:
-                task.cancel()
-            
-            if pending:
-                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-            
-            loop.close()
+        logger.info("Starting Satoshi Signal Bot in polling mode...")
+        asyncio.run(bot_app.run())
         
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt received")
