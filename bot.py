@@ -1,6 +1,3 @@
-# === bot.py - NAPRAWIONY GŁÓWNY PLIK ===
-# Zastąp zawartość tego pliku
-
 import logging
 import os
 import asyncio
@@ -38,9 +35,7 @@ logger = logging.getLogger(__name__)
 
 class MemorySafeJobManager:
     """
-    🛡️ NAPRAWIA: Memory leaks w job queue
-    PRZED: Jobs accumulate in memory → crash after few hours
-    PO: Automatic cleanup → stable memory usage
+    Memory-safe job manager that prevents job accumulation
     """
     def __init__(self):
         self.jobs = {}
@@ -74,11 +69,11 @@ class MemorySafeJobManager:
                 'callback': callback.__name__
             }
             
-            logger.info(f"✅ Job '{name}' added. Active jobs: {len(self.jobs)}")
+            logger.info(f"Job '{name}' added. Active jobs: {len(self.jobs)}")
             return job
             
         except Exception as e:
-            logger.error(f"❌ Failed to add job '{name}': {e}")
+            logger.error(f"Failed to add job '{name}': {e}")
             raise
     
     def _maybe_cleanup(self):
@@ -100,7 +95,7 @@ class MemorySafeJobManager:
             del self.jobs[name]
             
         if completed:
-            logger.info(f"🧹 Cleaned up {len(completed)} completed jobs")
+            logger.info(f"Cleaned up {len(completed)} completed jobs")
             gc.collect()  # Force garbage collection
     
     def _force_cleanup(self):
@@ -118,7 +113,7 @@ class MemorySafeJobManager:
                 info = self.jobs[name]
                 info['job'].schedule_removal()
                 del self.jobs[name]
-                logger.info(f"🗑️ Removed old job: {name}")
+                logger.info(f"Removed old job: {name}")
             except Exception as e:
                 logger.warning(f"Failed to remove job {name}: {e}")
         
@@ -136,7 +131,6 @@ class MemorySafeJobManager:
 
 class SafeBotApplication:
     """
-    🚀 NAPRAWIA: Bot crashes and instability
     Comprehensive error handling and recovery
     """
     def __init__(self):
@@ -177,9 +171,9 @@ class SafeBotApplication:
     
     async def _enhanced_error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
-        🛡️ NAPRAWIA: Unhandled errors crashing bot
+        Enhanced error handling
         """
-        logger.error("🚨 BOT ERROR DETECTED", exc_info=context.error)
+        logger.error("BOT ERROR DETECTED", exc_info=context.error)
         
         # Collect error context
         error_info = {
@@ -202,8 +196,8 @@ class SafeBotApplication:
         if isinstance(update, Update) and update.effective_message:
             try:
                 await update.effective_message.reply_text(
-                    "❌ Wystąpił błąd. Bot automatycznie się naprawia.\n"
-                    "Spróbuj ponownie za chwilę.",
+                    "❌ An error occurred. Bot is automatically recovering.\n"
+                    "Please try again shortly.",
                     timeout=10
                 )
             except Exception as notify_error:
@@ -211,7 +205,7 @@ class SafeBotApplication:
         
         # Memory cleanup on critical errors
         if isinstance(context.error, MemoryError):
-            logger.critical("🧨 MEMORY ERROR - forcing cleanup")
+            logger.critical("MEMORY ERROR - forcing cleanup")
             gc.collect()
             
             # If still critical, try to restart
@@ -230,7 +224,7 @@ class SafeBotApplication:
     async def _setup_signal_handlers(self):
         """Setup graceful shutdown"""
         def signal_handler(signum, frame):
-            logger.info(f"📡 Signal {signum} received, shutting down...")
+            logger.info(f"Signal {signum} received, shutting down...")
             asyncio.create_task(self._graceful_shutdown())
         
         signal.signal(signal.SIGINT, signal_handler)
@@ -238,32 +232,32 @@ class SafeBotApplication:
     
     async def _graceful_shutdown(self):
         """Clean shutdown procedure"""
-        logger.info("🛑 Starting graceful shutdown...")
+        logger.info("Starting graceful shutdown...")
         
         try:
             # Stop application
             if self.application:
                 await self.application.stop()
-                logger.info("✅ Application stopped")
+                logger.info("Application stopped")
             
             # Cleanup HTTP connections
             try:
                 from dex.screener import cleanup
                 await cleanup()
-                logger.info("✅ HTTP connections closed")
+                logger.info("HTTP connections closed")
             except Exception as e:
                 logger.warning(f"HTTP cleanup error: {e}")
             
             # Force garbage collection
             gc.collect()
-            logger.info("✅ Memory cleanup completed")
+            logger.info("Memory cleanup completed")
             
             self._shutdown_event.set()
             
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
         finally:
-            logger.info("🔚 Graceful shutdown completed")
+            logger.info("Graceful shutdown completed")
     
     async def _memory_monitor(self):
         """Background memory monitoring"""
@@ -276,4 +270,203 @@ class SafeBotApplication:
                 if int(uptime_hours) != int(uptime_hours - 0.0167):  # Every hour
                     job_stats = self.job_manager.get_stats()
                     logger.info(
-                        f"📊 Bot
+                        f"Bot stats - Memory: {memory_mb:.1f}MB, "
+                        f"Uptime: {uptime_hours:.1f}h, Jobs: {job_stats['active_jobs']}"
+                    )
+                
+                # Warning thresholds
+                if memory_mb > 512:
+                    logger.warning(f"High memory usage: {memory_mb:.1f}MB")
+                    
+                if memory_mb > 1024:
+                    logger.critical(f"Critical memory: {memory_mb:.1f}MB - forcing cleanup")
+                    gc.collect()
+                    self.job_manager._cleanup_completed_jobs()
+                
+                await asyncio.sleep(300)  # Check every 5 minutes
+                
+            except Exception as e:
+                logger.error(f"Memory monitor error: {e}")
+                await asyncio.sleep(60)
+    
+    def _setup_handlers(self):
+        """Setup all bot handlers"""
+        if not self.application:
+            raise RuntimeError("Application not initialized")
+        
+        # Add error handler FIRST
+        self.application.add_error_handler(self._enhanced_error_handler)
+        
+        # Command handlers
+        self.application.add_handler(CommandHandler("start", start_command))
+        self.application.add_handler(CommandHandler("help", help_command))
+        self.application.add_handler(CommandHandler("vip", vip_command))
+        self.application.add_handler(CommandHandler("status", status_command))
+        self.application.add_handler(CommandHandler("signals", signals_command))
+        
+        # Schedule jobs with memory-safe manager
+        self.job_manager.add_job(
+            job_queue=self.application.job_queue,
+            callback=vip_signals_push,
+            interval=900,  # 15 minutes
+            first=60,      # Start after 1 minute
+            data=VIP_CHANNEL_ID,
+            name="vip_signals"
+        )
+        
+        self.job_manager.add_job(
+            job_queue=self.application.job_queue,
+            callback=public_signals_push,
+            interval=28800,  # 8 hours
+            first=300,       # Start after 5 minutes
+            data=PUBLIC_CHANNEL_ID,
+            name="public_signals"
+        )
+        
+        logger.info("All handlers and jobs configured")
+    
+    async def run_polling(self):
+        """Run bot in polling mode"""
+        logger.info("Starting polling mode...")
+        
+        try:
+            await self.application.initialize()
+            await self.application.start()
+            
+            # Start background monitoring
+            monitor_task = asyncio.create_task(self._memory_monitor())
+            
+            # Start polling
+            await self.application.updater.start_polling(
+                allowed_updates=None,
+                drop_pending_updates=True,  # Clear old updates
+                timeout=30,
+                poll_interval=1.0,
+                bootstrap_retries=3
+            )
+            
+            logger.info("Bot polling started successfully")
+            
+            # Wait for shutdown signal
+            await self._shutdown_event.wait()
+            
+            # Cleanup
+            monitor_task.cancel()
+            
+        except Exception as e:
+            logger.error(f"Error in polling mode: {e}")
+            raise
+        finally:
+            await self._graceful_shutdown()
+    
+    async def run_webhook(self, webhook_url: str):
+        """Run bot in webhook mode"""
+        path = f"/{BOT_TOKEN}"
+        listen_port = int(os.getenv("PORT", 8443))
+        
+        logger.info(f"Starting webhook mode: {webhook_url}")
+        
+        try:
+            await self.application.initialize()
+            await self.application.start()
+            
+            # Start background monitoring
+            monitor_task = asyncio.create_task(self._memory_monitor())
+            
+            # Start webhook
+            await self.application.run_webhook(
+                listen="0.0.0.0",
+                port=listen_port,
+                url_path=path,
+                webhook_url=f"{webhook_url}{path}",
+                allowed_updates=None,
+                drop_pending_updates=True,
+                read_timeout=30,
+                write_timeout=30,
+                connect_timeout=30
+            )
+            
+            # Cleanup
+            monitor_task.cancel()
+            
+        except Exception as e:
+            logger.error(f"Error in webhook mode: {e}")
+            raise
+        finally:
+            await self._graceful_shutdown()
+    
+    async def start(self):
+        """Main bot startup"""
+        if not BOT_TOKEN:
+            logger.error("BOT_TOKEN not found in environment")
+            return
+        
+        logger.info("SATOSHI SIGNAL BOT STARTING...")
+        logger.info(f"Start time: {datetime.now()}")
+        logger.info(f"Python version: {os.sys.version}")
+        
+        try:
+            # Create application
+            self.application = (
+                Application.builder()
+                .token(BOT_TOKEN)
+                .read_timeout(30)
+                .write_timeout(30)
+                .connect_timeout(30)
+                .pool_timeout(30)
+                .concurrent_updates(True)
+                .build()
+            )
+            
+            self._running = True
+            
+            # Setup signal handlers
+            await self._setup_signal_handlers()
+            
+            # Setup all handlers
+            self._setup_handlers()
+            
+            # Choose run mode
+            webhook_url = os.getenv("WEBHOOK_URL")
+            
+            if webhook_url and self._validate_webhook_url(webhook_url):
+                logger.info(f"Using webhook mode: {webhook_url}")
+                await self.run_webhook(webhook_url)
+            else:
+                if webhook_url:
+                    logger.warning(f"Invalid WEBHOOK_URL: {webhook_url}")
+                logger.info("Using polling mode")
+                await self.run_polling()
+                
+        except Exception as e:
+            logger.error(f"Critical startup error: {e}", exc_info=True)
+            raise
+        finally:
+            self._running = False
+            logger.info("Bot stopped")
+
+# Global bot instance
+bot_app = SafeBotApplication()
+
+def main():
+    """
+    Main entry point with proper async handling
+    """
+    try:
+        # Set up better event loop for better performance
+        if os.name == 'nt':  # Windows
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+        else:  # Unix/Linux - use default event loop (uvloop not compatible with Python 3.13)
+            logger.info("Using default asyncio event loop")
+        
+        # Run bot
+        asyncio.run(bot_app.start())
+        
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received")
+    except Exception as e:
+        logger.error(f"Fatal error in main: {e}", exc_info=True)
+        raise
+
+if __name__ == "__main__":
+    main()
