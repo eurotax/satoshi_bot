@@ -39,22 +39,19 @@ class MemorySafeJobManager:
     """
     def __init__(self):
         self.jobs = {}
-        self.max_jobs = 20  # Reasonable limit
+        self.max_jobs = 20
         self.last_cleanup = time.time()
-        self.cleanup_interval = 600  # 10 minutes
+        self.cleanup_interval = 600
     
     def add_job(self, job_queue, callback, interval: int, first: int, data: any, name: str):
         """Add job with automatic memory management"""
         try:
-            # Cleanup old jobs first
             self._maybe_cleanup()
             
-            # Check limits
             if len(self.jobs) >= self.max_jobs:
                 logger.warning(f"Too many jobs ({len(self.jobs)}), cleaning up")
                 self._force_cleanup()
             
-            # Add new job
             job = job_queue.run_repeating(
                 callback=callback,
                 interval=interval,
@@ -96,7 +93,7 @@ class MemorySafeJobManager:
             
         if completed:
             logger.info(f"Cleaned up {len(completed)} completed jobs")
-            gc.collect()  # Force garbage collection
+            gc.collect()
     
     def _force_cleanup(self):
         """Force cleanup of old jobs"""
@@ -105,7 +102,7 @@ class MemorySafeJobManager:
         
         for name, info in self.jobs.items():
             age = now - info['created']
-            if age > 3600:  # Older than 1 hour
+            if age > 3600:
                 old_jobs.append(name)
         
         for name in old_jobs:
@@ -156,7 +153,6 @@ class SafeBotApplication:
                 logger.warning("Empty webhook netloc")
                 return False
             
-            # Security check
             if parsed.hostname in ('localhost', '127.0.0.1'):
                 if os.getenv('ENVIRONMENT') == 'production':
                     logger.error("Localhost webhook in production")
@@ -170,12 +166,9 @@ class SafeBotApplication:
             return False
     
     async def _enhanced_error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """
-        Enhanced error handling
-        """
+        """Enhanced error handling"""
         logger.error("BOT ERROR DETECTED", exc_info=context.error)
         
-        # Collect error context
         error_info = {
             'error_type': type(context.error).__name__,
             'error_message': str(context.error),
@@ -192,7 +185,6 @@ class SafeBotApplication:
         
         logger.error(f"Error context: {error_info}")
         
-        # Try to notify user
         if isinstance(update, Update) and update.effective_message:
             try:
                 await update.effective_message.reply_text(
@@ -203,13 +195,11 @@ class SafeBotApplication:
             except Exception as notify_error:
                 logger.error(f"Failed to notify user: {notify_error}")
         
-        # Memory cleanup on critical errors
         if isinstance(context.error, MemoryError):
             logger.critical("MEMORY ERROR - forcing cleanup")
             gc.collect()
             
-            # If still critical, try to restart
-            if self._get_memory_usage() > 1024:  # Over 1GB
+            if self._get_memory_usage() > 1024:
                 logger.critical("Memory still high, initiating restart")
                 await self._graceful_shutdown()
     
@@ -219,7 +209,7 @@ class SafeBotApplication:
             import psutil
             return psutil.Process().memory_info().rss / 1024 / 1024
         except ImportError:
-            return 0.0  # psutil not available
+            return 0.0
     
     async def _setup_signal_handlers(self):
         """Setup graceful shutdown"""
@@ -235,12 +225,10 @@ class SafeBotApplication:
         logger.info("Starting graceful shutdown...")
         
         try:
-            # Stop application
             if self.application:
                 await self.application.stop()
                 logger.info("Application stopped")
             
-            # Cleanup HTTP connections
             try:
                 from dex.screener import cleanup
                 await cleanup()
@@ -248,7 +236,6 @@ class SafeBotApplication:
             except Exception as e:
                 logger.warning(f"HTTP cleanup error: {e}")
             
-            # Force garbage collection
             gc.collect()
             logger.info("Memory cleanup completed")
             
@@ -266,15 +253,13 @@ class SafeBotApplication:
                 memory_mb = self._get_memory_usage()
                 uptime_hours = (time.time() - self._start_time) / 3600
                 
-                # Log memory stats every hour
-                if int(uptime_hours) != int(uptime_hours - 0.0167):  # Every hour
+                if int(uptime_hours) != int(uptime_hours - 0.0167):
                     job_stats = self.job_manager.get_stats()
                     logger.info(
                         f"Bot stats - Memory: {memory_mb:.1f}MB, "
                         f"Uptime: {uptime_hours:.1f}h, Jobs: {job_stats['active_jobs']}"
                     )
                 
-                # Warning thresholds
                 if memory_mb > 512:
                     logger.warning(f"High memory usage: {memory_mb:.1f}MB")
                     
@@ -283,7 +268,7 @@ class SafeBotApplication:
                     gc.collect()
                     self.job_manager._cleanup_completed_jobs()
                 
-                await asyncio.sleep(300)  # Check every 5 minutes
+                await asyncio.sleep(300)
                 
             except Exception as e:
                 logger.error(f"Memory monitor error: {e}")
@@ -294,22 +279,19 @@ class SafeBotApplication:
         if not self.application:
             raise RuntimeError("Application not initialized")
         
-        # Add error handler FIRST
         self.application.add_error_handler(self._enhanced_error_handler)
         
-        # Command handlers
         self.application.add_handler(CommandHandler("start", start_command))
         self.application.add_handler(CommandHandler("help", help_command))
         self.application.add_handler(CommandHandler("vip", vip_command))
         self.application.add_handler(CommandHandler("status", status_command))
         self.application.add_handler(CommandHandler("signals", signals_command))
         
-        # Schedule jobs with memory-safe manager
         self.job_manager.add_job(
             job_queue=self.application.job_queue,
             callback=vip_signals_push,
-            interval=900,  # 15 minutes
-            first=60,      # Start after 1 minute
+            interval=900,
+            first=60,
             data=VIP_CHANNEL_ID,
             name="vip_signals"
         )
@@ -317,8 +299,8 @@ class SafeBotApplication:
         self.job_manager.add_job(
             job_queue=self.application.job_queue,
             callback=public_signals_push,
-            interval=28800,  # 8 hours
-            first=300,       # Start after 5 minutes
+            interval=28800,
+            first=300,
             data=PUBLIC_CHANNEL_ID,
             name="public_signals"
         )
@@ -333,24 +315,19 @@ class SafeBotApplication:
             await self.application.initialize()
             await self.application.start()
             
-            # Start background monitoring
             monitor_task = asyncio.create_task(self._memory_monitor())
             
-            # Start polling
             await self.application.updater.start_polling(
                 allowed_updates=None,
-                drop_pending_updates=True,  # Clear old updates
+                drop_pending_updates=True,
                 timeout=30,
-                poll_interval=1.0,
-                bootstrap_retries=3
+                poll_interval=1.0
             )
             
             logger.info("Bot polling started successfully")
             
-            # Wait for shutdown signal
             await self._shutdown_event.wait()
             
-            # Cleanup
             monitor_task.cancel()
             
         except Exception as e:
@@ -360,7 +337,7 @@ class SafeBotApplication:
             await self._graceful_shutdown()
     
     async def run_webhook(self, webhook_url: str):
-        """Run bot in webhook mode"""
+        """Run bot in webhook mode - FIXED VERSION"""
         path = f"/{BOT_TOKEN}"
         listen_port = int(os.getenv("PORT", 8443))
         
@@ -370,23 +347,18 @@ class SafeBotApplication:
             await self.application.initialize()
             await self.application.start()
             
-            # Start background monitoring
             monitor_task = asyncio.create_task(self._memory_monitor())
             
-            # Start webhook
+            # FIXED: Use correct parameters for run_webhook
             await self.application.run_webhook(
                 listen="0.0.0.0",
                 port=listen_port,
                 url_path=path,
                 webhook_url=f"{webhook_url}{path}",
                 allowed_updates=None,
-                drop_pending_updates=True,
-                read_timeout=30,
-                write_timeout=30,
-                connect_timeout=30
+                drop_pending_updates=True
             )
             
-            # Cleanup
             monitor_task.cancel()
             
         except Exception as e:
@@ -406,7 +378,6 @@ class SafeBotApplication:
         logger.info(f"Python version: {os.sys.version}")
         
         try:
-            # Create application
             self.application = (
                 Application.builder()
                 .token(BOT_TOKEN)
@@ -420,13 +391,10 @@ class SafeBotApplication:
             
             self._running = True
             
-            # Setup signal handlers
             await self._setup_signal_handlers()
             
-            # Setup all handlers
             self._setup_handlers()
             
-            # Choose run mode
             webhook_url = os.getenv("WEBHOOK_URL")
             
             if webhook_url and self._validate_webhook_url(webhook_url):
@@ -449,17 +417,13 @@ class SafeBotApplication:
 bot_app = SafeBotApplication()
 
 def main():
-    """
-    Main entry point with proper async handling
-    """
+    """Main entry point with proper async handling"""
     try:
-        # Set up better event loop for better performance
-        if os.name == 'nt':  # Windows
+        if os.name == 'nt':
             asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-        else:  # Unix/Linux - use default event loop (uvloop not compatible with Python 3.13)
+        else:
             logger.info("Using default asyncio event loop")
         
-        # Run bot
         asyncio.run(bot_app.start())
         
     except KeyboardInterrupt:
