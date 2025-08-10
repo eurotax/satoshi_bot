@@ -1,4 +1,4 @@
-# === ZAKTUALIZOWANE REQUIREMENTS.TXT ===
+# === ZAKTUALIZOWANE REQUIREMENTS.TXT - COMPATIBLE VERSION ===
 # Zastąp zawartość pliku requirements.txt
 
 # ✅ CORE DEPENDENCIES - Naprawione wersje
@@ -8,7 +8,7 @@ httpx[http2]==0.28.1
 
 # ✅ PERFORMANCE & MONITORING - Dodane dla stabilności  
 psutil==6.0.0
-uvloop==0.20.0
+# uvloop==0.20.0  # REMOVED - incompatible with Python 3.13
 
 # ✅ ASYNC & HTTP - Ulepszone do obsługi concurrent requests
 aiofiles==24.1.0
