@@ -1,7 +1,8 @@
 import express from "express";
 import axios from "axios";
-import { Server } from "@modelcontextprotocol/sdk";
-import { HttpServerTransport } from "@modelcontextprotocol/sdk";
+import { Server } from "@modelcontextprotocol/sdk/dist/index.js";
+import { HttpServerTransport } from "@modelcontextprotocol/sdk/dist/server/http/index.js";
+
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
