@@ -46,6 +46,14 @@ class HTTPClientManager:
 # Global instance
 http_manager = HTTPClientManager()
 
+def safe_int_convert(value: Any, default: int = 0) -> int:
+    """Safe int conversion"""
+    try:
+        float_val = safe_float_convert(value, default)
+        return int(float_val)
+    except (ValueError, OverflowError):
+        return default
+
 @retry_with_exponential_backoff(max_retries=3, base_delay=1.0)
 @log_function_call
 async def fetch_trending_pairs(limit: int = 50) -> List[Dict[str, Any]]:
@@ -249,4 +257,125 @@ def is_quality_pair(pair: Dict[str, Any]) -> bool:
         
         return True
         
-    except
+    except Exception as e:
+        logger.warning(f"Quality check error: {e}")
+        return False
+
+@log_function_call
+async def get_filtered_signals(limit: int = 5) -> List[Dict[str, Any]]:
+    """
+    Main function: Get high-quality filtered signals
+    """
+    try:
+        # Fetch more pairs to have good selection after filtering
+        raw_pairs = await fetch_trending_pairs(limit * 8)  
+        
+        if not raw_pairs:
+            logger.warning("No raw pairs fetched")
+            return []
+        
+        # Filter for quality
+        filtered_pairs = filter_signals(raw_pairs)
+        
+        if not filtered_pairs:
+            logger.warning("No pairs passed filtering")
+            return []
+        
+        # Return top N
+        result = filtered_pairs[:limit]
+        logger.info(f"Returning {len(result)} filtered signals")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in get_filtered_signals: {e}")
+        return []
+
+def format_pair_message(pair: Dict[str, Any]) -> str:
+    """
+    Safe formatting with fallbacks
+    """
+    try:
+        # Extract token info safely
+        base_token = pair.get("baseToken", {})
+        quote_token = pair.get("quoteToken", {})
+        
+        base_symbol = base_token.get("symbol", "?")
+        quote_symbol = quote_token.get("symbol", "?")
+        pair_name = f"{base_symbol}/{quote_symbol}"
+        
+        # Extract numbers safely
+        price_usd = safe_float_convert(pair.get("priceUsd"))
+        
+        price_change = pair.get("priceChange", {})
+        change_1h = safe_float_convert(price_change.get("h1"))
+        change_24h = safe_float_convert(price_change.get("h24"))
+        
+        volume = safe_float_convert(pair.get("volume", {}).get("h24"))
+        liquidity = safe_float_convert(pair.get("liquidity", {}).get("usd"))
+        
+        # Get URL safely
+        url = pair.get("url", "")
+        if not url:
+            url = f"https://dexscreener.com/solana/{pair.get('pairAddress', '')}"
+        
+        # Format with safe number display
+        emoji = "📈" if change_1h > 0 else "📉"
+        
+        # Smart price formatting
+        if price_usd >= 1:
+            price_str = f"${price_usd:.4f}"
+        elif price_usd >= 0.0001:
+            price_str = f"${price_usd:.8f}"
+        else:
+            price_str = f"${price_usd:.12f}"
+        
+        message = (
+            f"{emoji} [{pair_name}]({url})\n"
+            f"💰 {price_str}\n"
+            f"📊 1h: {change_1h:+.2f}% | 24h: {change_24h:+.2f}%\n"
+            f"💹 Vol: ${volume:,.0f} | 🔒 Liq: ${liquidity:,.0f}"
+        )
+        
+        return message
+        
+    except Exception as e:
+        logger.error(f"Error formatting pair: {e}")
+        return "❌ Error formatting signal data"
+
+def format_signals_message(pairs: List[Dict[str, Any]], vip: bool = False) -> str:
+    """
+    Format message with validation
+    """
+    if not pairs:
+        return "⚠️ No high-quality signals available at the moment.\nCheck back in a few minutes!"
+    
+    # Header
+    if vip:
+        header = "💎 *VIP SIGNALS* 💎\n\n"
+        footer = "\n\n🔒 *Exclusive VIP Analysis*\n⚡ *Real-time Signals*"
+    else:
+        header = "📊 *CRYPTO SIGNALS* 📊\n\n" 
+        footer = "\n\n💎 [Join VIP](https://t.me/+sR2qa2jnr6o5MDk0) for more signals!"
+    
+    # Format pairs
+    pair_messages = []
+    for i, pair in enumerate(pairs, 1):
+        try:
+            pair_msg = format_pair_message(pair)
+            if pair_msg and not pair_msg.startswith("❌"):
+                pair_messages.append(f"**{i}.** {pair_msg}")
+        except Exception as e:
+            logger.warning(f"Skipping pair {i} due to formatting error: {e}")
+            continue
+    
+    if not pair_messages:
+        return "⚠️ Error formatting signals. Please try again shortly."
+    
+    body = "\n\n".join(pair_messages)
+    
+    return header + body + footer
+
+# Cleanup function for graceful shutdown
+async def cleanup():
+    """Clean up resources"""
+    await http_manager.close()
