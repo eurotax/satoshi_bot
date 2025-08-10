@@ -1,4 +1,17 @@
-# Required libraries for satoshi_bot
+# === ZAKTUALIZOWANE REQUIREMENTS.TXT ===
+# Zastąp zawartość pliku requirements.txt
+
+# ✅ CORE DEPENDENCIES - Naprawione wersje
 python-telegram-bot[job-queue,webhooks]==21.5
 python-dotenv==1.1.1
-httpx~=0.28
+httpx[http2]==0.28.1
+
+# ✅ PERFORMANCE & MONITORING - Dodane dla stabilności  
+psutil==6.0.0
+uvloop==0.20.0
+
+# ✅ ASYNC & HTTP - Ulepszone do obsługi concurrent requests
+aiofiles==24.1.0
+
+# ✅ EXISTING DEPENDENCIES - Zachowane
+anthropic
