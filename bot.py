@@ -5,6 +5,7 @@ import gc
 import time
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from telegram import Update
@@ -19,6 +20,28 @@ from config import VIP_CHANNEL_ID, PUBLIC_CHANNEL_ID
 # Load environment variables
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN")
+
+
+def _is_valid_webhook(url: str) -> bool:
+    """Return True if the given URL looks like an HTTP(S) webhook endpoint."""
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+
+    if parsed.scheme not in {"http", "https"}:
+        return False
+
+    if not parsed.netloc:
+        return False
+
+    try:
+        # Accessing ``parsed.port`` will raise ``ValueError`` if the port is invalid
+        _ = parsed.port
+    except ValueError:
+        return False
+
+    return True
 
 # Enhanced logging setup
 logging.basicConfig(
